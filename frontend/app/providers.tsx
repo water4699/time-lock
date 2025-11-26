@@ -65,7 +65,7 @@ export function Providers({ children }: Props) {
       <MetaMaskEthersSignerProvider initialMockChains={{ 31337: "http://localhost:8545" }}>
         <WagmiProvider config={config}>
           <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider>
+            <RainbowKitProvider locale="en">
               <InMemoryStorageProvider>{children}</InMemoryStorageProvider>
             </RainbowKitProvider>
           </QueryClientProvider>
