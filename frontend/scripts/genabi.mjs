@@ -32,12 +32,33 @@ if (!fs.existsSync(outdir)) {
   process.exit(1);
 }
 
+// Check if we're in Vercel environment
+const isVercel = process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL;
+
 const deploymentsDir = path.join(dir, "deployments");
 
 function readDeployment(chainName, chainId, contractName, optional) {
   const chainDeploymentDir = path.join(deploymentsDir, chainName);
 
   if (!fs.existsSync(chainDeploymentDir)) {
+    if (isVercel) {
+      // In Vercel environment, use fallback values
+      console.log(`[Vercel] Using fallback for ${chainName} deployment`);
+      if (chainName === "localhost") {
+        return {
+          abi: [], // Will be filled from existing ABI file
+          address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          chainId
+        };
+      } else if (chainName === "sepolia") {
+        return {
+          abi: [], // Will be filled from existing ABI file
+          address: "0xf09ca095e56b11AB5a34677B4798C7186892A137",
+          chainId
+        };
+      }
+    }
+
     console.error(
       `${line}Unable to locate '${chainDeploymentDir}' directory.\n\n1. Goto '${dirname}' directory\n2. Run 'npx hardhat deploy --network ${chainName}'.${line}`
     );
@@ -65,6 +86,25 @@ const deployLocalhost = readDeployment("localhost", 31337, CONTRACT_NAME, false)
 let deploySepolia = readDeployment("sepolia", 11155111, CONTRACT_NAME, true);
 if (!deploySepolia) {
   deploySepolia = { abi: deployLocalhost.abi, address: "0x0000000000000000000000000000000000000000" };
+}
+
+// In Vercel environment, if ABI is empty, try to read from existing ABI file
+if (isVercel && (!deployLocalhost.abi || deployLocalhost.abi.length === 0)) {
+  try {
+    const existingAbiPath = path.join(outdir, `${CONTRACT_NAME}ABI.ts`);
+    if (fs.existsSync(existingAbiPath)) {
+      const existingContent = fs.readFileSync(existingAbiPath, 'utf-8');
+      // Extract ABI from existing file
+      const abiMatch = existingContent.match(/abi:\s*(\[[\s\S]*?\])/);
+      if (abiMatch) {
+        deployLocalhost.abi = JSON.parse(abiMatch[1]);
+        deploySepolia.abi = deployLocalhost.abi;
+        console.log('[Vercel] Successfully loaded ABI from existing file');
+      }
+    }
+  } catch (error) {
+    console.error('[Vercel] Failed to load existing ABI:', error.message);
+  }
 }
 
 if (deployLocalhost && deploySepolia) {
